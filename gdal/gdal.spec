@@ -24,7 +24,7 @@
 %global proj_somaj 9
 
 # Tests can be of a different version
-%global testversion 2.0.1
+%global testversion 2.0.2
 %global run_tests 1
 
 %global with_spatialite 1
@@ -41,8 +41,8 @@
 
 
 Name:      gdal
-Version:   2.0.1
-Release:   2%{?dist}
+Version:   2.0.2
+Release:   4%{?dist}
 Summary:   GIS file format library
 Group:     System Environment/Libraries
 License:   MIT
@@ -63,6 +63,12 @@ Source4:   PROVENANCE.TXT-fedora
 Patch1:    %{name}-g2clib.patch
 # Patch for Fedora JNI library location
 Patch2:    %{name}-jni.patch
+
+# https://trac.osgeo.org/gdal/ticket/6159#ticket
+Patch3:    %{name}-2.0.1-iso8211-include.patch
+
+# https://trac.osgeo.org/gdal/ticket/6360
+Patch4:    %{name}-2.0.2-sqlite-crash.patch
 
 # Fedora uses Alternatives for Java
 Patch8:    %{name}-1.9.0-java.patch
@@ -289,6 +295,8 @@ rm -r frmts/grib/degrib18/g2clib-1.0.4
 
 %patch1 -p1 -b .g2clib~
 %patch2 -p1 -b .jni~
+%patch3 -p1 -b .iso8211~
+%patch4 -p4 -b .sqlite~
 %patch8 -p1 -b .java~
 
 # Copy in PROVENANCE.TXT-fedora
@@ -365,6 +373,10 @@ sed -i 's|test \"$ARCH\" = \"x86_64\"|test \"$libdir\" = \"/usr/lib64\"|g' confi
 # Fix mandir
 sed -i "s|^mandir=.*|mandir='\${prefix}/share/man'|" configure
 
+# Add our custom cflags when trying to find geos
+# https://bugzilla.redhat.com/show_bug.cgi?id=1284714
+sed -i 's|CFLAGS=\"${GEOS_CFLAGS}\"|CFLAGS=\"${CFLAGS} ${GEOS_CFLAGS}\"|g' configure
+
 # Activate support for JPEGLS
 #sed -i 's|^#HAVE_CHARLS|HAVE_CHARLS|' GDALmake.opt.in
 #sed -i 's|#CHARLS_INC = -I/path/to/charls_include|CHARLS_INC = -I%{_includedir}/CharLS|' GDALmake.opt.in
@@ -378,10 +390,6 @@ sed -i "s|^mandir=.*|mandir='\${prefix}/share/man'|" configure
     gcore/gdaldrivermanager.cpp \
     ogr/ogrsf_frmts/generic/ogrsfdriverregistrar.cpp
 %endif
-
-# Remove man dir, as it blocks a build target.
-# It obviously slipped into the tarball and is not in Trunk (April 17th, 2011)
-#rm -rf man
 
 
 %build
@@ -457,6 +465,15 @@ pushd swig/perl
   echo > Makefile.PL;
 popd
 
+# Build some utilities, as requested in BZ #1271906
+pushd ogr/ogrsf_frmts/s57/
+  make all
+popd
+
+pushd frmts/iso8211/
+  make all
+popd
+
 # Install the Perl modules in the right place
 sed -i 's|INSTALLDIRS = site|INSTALLDIRS = vendor|' swig/perl/Makefile_*
 
@@ -474,7 +491,6 @@ popd
 pushd swig/python
   %{__python3} setup.py build
 popd
-
 
 # --------- Documentation ----------
 
@@ -516,6 +532,11 @@ rm -rf %{buildroot}
 make    DESTDIR=%{buildroot} \
         install \
         install-man
+
+install -pm 755 ogr/ogrsf_frmts/s57/s57dump %{buildroot}%{_bindir}
+install -pm 755 frmts/iso8211/8211createfromxml %{buildroot}%{_bindir}
+install -pm 755 frmts/iso8211/8211dump %{buildroot}%{_bindir}
+install -pm 755 frmts/iso8211/8211view %{buildroot}%{_bindir}
 
 # Directory for auto-loading plugins
 mkdir -p %{buildroot}%{_libdir}/%{name}plugins
@@ -574,17 +595,16 @@ for docdir in %{docdirs}; do
   popd
 done
 
-# Install Python 3 module
-pushd swig/python
-  %{__python3} setup.py install --skip-build --root %{buildroot}
-popd
-
-
 # Install formats documentation
 for dir in gdal_frmts ogrsf_frmts; do
   mkdir -p $dir
   find frmts -name "*.html" -exec install -p -m 644 '{}' $dir \;
 done
+
+# Install Python 3 module
+pushd swig/python
+  %{__python3} setup.py install --skip-build --root %{buildroot}
+popd
 
 #TODO: Header date lost during installation
 # Install multilib cpl_config.h bz#430894
@@ -673,6 +693,7 @@ for f in 'GDAL*' BandProperty ColorAssociation CutlineTransformer DatasetPropert
 done
 #TODO: What's that?
 rm -f %{buildroot}%{_mandir}/man1/*_%{name}-%{version}-fedora_apps_*
+rm -f %{buildroot}%{_mandir}/man1/_home_rouault_dist_wrk_gdal_apps_.1*
 
 %check
 %if %{run_tests}
@@ -730,6 +751,8 @@ popd
 %{_bindir}/gdaltransform
 %{_bindir}/nearblack
 %{_bindir}/ogr*
+%{_bindir}/8211*
+%{_bindir}/s57*
 %{_bindir}/testepsg
 %{_mandir}/man1/gdal*.1*
 %exclude %{_mandir}/man1/gdal-config.1*
@@ -812,8 +835,33 @@ popd
 #Or as before, using ldconfig
 
 %changelog
-* Sat Sep 26 2015 Julien Enselme <jujens@jujens.eu> - 2.0.1-2
+* Mon Feb 15 2016 Julien Enselme <jujens@jujens.eu> - 2.0.2-4
 - Add python3 support
+
+* Sun Feb 14 2016 Volker Froehlich <volker27@gmx.at> - 2.0.2-3
+- Add patch for GDAL issue #6360
+
+* Mon Feb 08 2016 Volker Froehlich <volker27@gmx.at> - 2.0.2-2
+- Rebuild for armadillo 6
+
+* Thu Feb 04 2016 Volker Froehlich <volker27@gmx.at> - 2.0.2-1
+- New upstream release
+- Fix geos support (BZ #1284714)
+
+* Wed Feb 03 2016 Fedora Release Engineering <releng@fedoraproject.org> - 2.0.1-6
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_24_Mass_Rebuild
+
+* Fri Jan 22 2016 Marek Kasik <mkasik@redhat.com> 2.0.1-5
+- Rebuild for poppler-0.40.0
+
+* Fri Jan 15 2016 Adam Jackson <ajax@redhat.com> 2.0.1-4
+- Rebuild for libdap soname bump
+
+* Mon Dec 28 2015 Igor Gnatenko <i.gnatenko.brain@gmail.com> - 2.0.1-3
+- Rebuilt for libwebp soname bump
+
+* Sun Oct 18 2015 Volker Froehlich <volker27@gmx.at> - 2.0.1-2
+- Solve BZ #1271906 (Build iso8211 and s57 utilities)
 
 * Thu Sep 24 2015 Volker Froehlich <volker27@gmx.at> - 2.0.1-1
 - Updated for 2.0.1; Add Perl module manpage
