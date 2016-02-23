@@ -1,4 +1,4 @@
-%global ini_name mapserver.ini
+%global ini_name 40-mapserver.ini
 %global project_owner mapserver
 %global project_name mapserver
 %global commit ab96f8a35e0d85ac9a83ec1cb9032ad33afe802b
@@ -6,7 +6,7 @@
 
 Name:           mapserver
 Version:        7.0.0
-Release:        1.git%{shortcommit}%{?dist}
+Release:        2.git%{shortcommit}%{?dist}
 Summary:        Environment for building spatially-enabled internet applications
 
 Group:          Development/Tools
@@ -14,6 +14,8 @@ License:        BSD
 URL:            http://www.mapserver.org
 
 Source0:        https://github.com/%{project_owner}/%{project_name}/archive/%{commit}/%{project_name}-%{commit}.tar.gz
+Patch0:         swig-java-format-security.patch
+Patch1:         swig-ruby-format-security.patch
 
 Requires:       httpd
 Requires:       dejavu-sans-fonts
@@ -111,8 +113,21 @@ Requires:       java-headless
 The Java/Mapscript extension provides full map customization capabilities
 within the Java programming language.
 
+
+%package ruby
+Summary:       Ruby/Mapscript map making extensions to Ruby
+BuildRequires: ruby-devel
+Requires:      %{name} = %{version}-%{release}
+
+%description ruby
+The Ruby/Mapscript extension provides full map customization capabilities within
+the ruby programming language.
+
+
 %prep
 %setup -q -n %{project_owner}-%{commit}
+%patch0 -p1
+%patch1 -p1
 
 
 # replace fonts for tests with symlinks
@@ -138,8 +153,8 @@ export CXXFLAGS="%{optflags} -fno-strict-aliasing"
 cmake -DINSTALL_LIB_DIR=%{_libdir} \
       -DCMAKE_INSTALL_PREFIX=%{_prefix} \
       -DCMAKE_SKIP_RPATH=ON \
-      -DCMAKE_C_FLAGS_RELEASE="%{optflags} -fno-strict-aliasing" \
       -DCMAKE_CXX_FLAGS_RELEASE="%{optflags} -fno-strict-aliasing" \
+      -DCMAKE_C_FLAGS_RELEASE="%{optflags} -fno-strict-aliasing" \
       -DCMAKE_VERBOSE_MAKEFILE=ON \
       -DCMAKE_BUILD_TYPE="Release" \
       -DCMAKE_SKIP_INSTALL_RPATH=ON \
@@ -155,7 +170,7 @@ cmake -DINSTALL_LIB_DIR=%{_libdir} \
       -DWITH_GEOS=TRUE \
       -DWITH_GIF=TRUE \
       -DWITH_ICONV=TRUE \
-      -DWITH_JAVA=FALSE \
+      -DWITH_JAVA=TRUE \
       -DWITH_KML=TRUE \
       -DWITH_LIBXML2=TRUE \
       -DWITH_OGR=TRUE \
@@ -166,7 +181,8 @@ cmake -DINSTALL_LIB_DIR=%{_libdir} \
       -DWITH_POSTGIS=TRUE \
       -DWITH_PROJ=TRUE \
       -DWITH_PYTHON=TRUE \
-      -DWITH_RUBY=FALSE \
+      -DWITH_RUBY=TRUE \
+      -DWITH_V8=FALSE \
       -DWITH_SOS=TRUE \
       -DWITH_THREAD_SAFETY=TRUE \
       -DWITH_WCS=TRUE \
@@ -200,6 +216,10 @@ mkdir -p %{buildroot}%{_includedir}/%{name}/
 
 install -p -m 644 xmlmapfile/mapfile.xsd %{buildroot}%{_datadir}/%{name}
 install -p -m 644 xmlmapfile/mapfile.xsl %{buildroot}%{_datadir}/%{name}
+
+# install java
+mkdir -p %{buildroot}%{_javadir}
+install -p -m 644 build/mapscript/java/mapscript.jar %{buildroot}%{_javadir}/
 
 # install header
 install -p -m 644 *.h %{buildroot}%{_includedir}/%{name}/
@@ -247,7 +267,6 @@ EOF
 %{_includedir}/%{name}/
 
 %files -n php-%{name}
-%doc README
 %doc mapscript/php/README
 %doc mapscript/php/examples
 %config(noreplace) %{php_inidir}/%{ini_name}
@@ -261,21 +280,28 @@ EOF
 %{perl_vendorarch}/mapscript.pm
 
 %files python
-%doc README
 %doc mapscript/python/README
 %doc mapscript/python/examples
 %doc mapscript/python/tests
-%{python_sitearch}/*mapscript*
+%{python2_sitearch}/*mapscript*
 
-#%%files java
-#%%doc mapscript/java/README
-#%%doc mapscript/java/examples
-#%%doc mapscript/java/tests
-#%%{_javadir}/*.jar
-#%%{_libdir}/libjavamapscript-%%{version}.so
+%files java
+%doc mapscript/java/README
+%doc mapscript/java/examples
+%doc mapscript/java/tests
+%{_javadir}/*.jar
+%{_libdir}/libjavamapscript.so
+
+%files ruby
+%doc mapscript/ruby/README
+%doc mapscript/ruby/examples
+%{ruby_sitearchdir}/mapscript.so
 
 
 %changelog
+* Tue Feb 23 2016 Julien Enselme <jujens@jujens.eu> - 7.0.0-2.gitab96f8a
+- Enable java, ruby bindings
+
 * Tue Feb 23 2016 Julien Enselme <jujens@jujens.eu> - 7.0.0-1.gitab96f8a
 - Update to 7.0.0
 
