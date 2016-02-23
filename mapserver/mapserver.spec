@@ -1,14 +1,19 @@
+%global ini_name mapserver.ini
+%global project_owner mapserver
+%global project_name mapserver
+%global commit ab96f8a35e0d85ac9a83ec1cb9032ad33afe802b
+%global shortcommit %(c=%{commit}; echo ${c:0:7})
+
 Name:           mapserver
-Version:        6.4.2
-Release:        1%{?dist}
+Version:        7.0.0
+Release:        1.git%{shortcommit}%{?dist}
 Summary:        Environment for building spatially-enabled internet applications
 
 Group:          Development/Tools
 License:        BSD
 URL:            http://www.mapserver.org
 
-Source0:        http://download.osgeo.org/mapserver/mapserver-%{version}.tar.gz
-Patch1:        4788.patch
+Source0:        https://github.com/%{project_owner}/%{project_name}/archive/%{commit}/%{project_name}-%{commit}.tar.gz
 
 Requires:       httpd
 Requires:       dejavu-sans-fonts
@@ -31,6 +36,7 @@ BuildRequires:  libxml2-devel
 BuildRequires:  libXpm-devel
 BuildRequires:  libxslt-devel
 BuildRequires:  mysql-devel
+BuildRequires:  harfbuzz-devel
 BuildRequires:  pam-devel
 BuildRequires:  perl(ExtUtils::MakeMaker)
 BuildRequires:  postgresql-devel
@@ -46,9 +52,17 @@ map images in real time. With appropriate interface pages,
 Mapserver can provide an interactive internet map based on
 custom GIS data.
 
+
+%package  libs
+Summary:  %{summary}
+
+%description libs
+This package contains the libs for mapserver.
+
+
 %package  devel
 Summary:        Development files for mapserver
-Requires:       %{name}
+Requires:       %{name} = %{version}
 
 %description devel
 This package contains development files for mapserver.
@@ -98,13 +112,7 @@ The Java/Mapscript extension provides full map customization capabilities
 within the Java programming language.
 
 %prep
-%setup -q -n mapserver-%{version}
-%patch1 -p1
-
-# fix spurious perm bits
-chmod -x mapscript/python/examples/*.py
-chmod -x mapscript/python/tests/rundoctests.dist
-chmod -x mapscript/perl/examples/*.pl
+%setup -q -n %{project_owner}-%{commit}
 
 
 # replace fonts for tests with symlinks
@@ -127,7 +135,8 @@ cd build
 export CFLAGS="${CFLAGS} -ldl -fPIC -fno-strict-aliasing"
 export CXXFLAGS="%{optflags} -fno-strict-aliasing"
 
-cmake -DCMAKE_INSTALL_PREFIX=%{_prefix} \
+cmake -DINSTALL_LIB_DIR=%{_libdir} \
+      -DCMAKE_INSTALL_PREFIX=%{_prefix} \
       -DCMAKE_SKIP_RPATH=ON \
       -DCMAKE_C_FLAGS_RELEASE="%{optflags} -fno-strict-aliasing" \
       -DCMAKE_CXX_FLAGS_RELEASE="%{optflags} -fno-strict-aliasing" \
@@ -198,12 +207,6 @@ install -p -m 644 *.h %{buildroot}%{_includedir}/%{name}/
 cd build
 make DESTDIR=%{buildroot} install %{?_smp_mflags}
 
-# Link relevent bins to libexec
-cd %{buildroot}%{_libexecdir}
-ln -s %{_bindir}/mapserv mapserv
-ln -s %{_bindir}/legend legend
-ln -s %{_bindir}/scalebar scalebar
-
 # install php config file
 mkdir -p %{buildroot}%{php_inidir}
 cat > %{buildroot}%{php_inidir}/%{ini_name} <<EOF
@@ -212,18 +215,15 @@ extension=php_mapscript.so
 EOF
 
 
-%post -p /sbin/ldconfig
+%post libs -p /sbin/ldconfig
 %post devel -p  /sbin/ldconfig
 
-%postun -p /sbin/ldconfig
+%postun libs -p /sbin/ldconfig
 %postun devel -p /sbin/ldconfig
 
 
 %files
-%doc README COMMITERS GD-COPYING HISTORY.TXT
-%doc INSTALL MIGRATION_GUIDE.txt
-%doc symbols tests
-%doc fonts
+%doc README
 %{_bindir}/legend
 %{_bindir}/mapserv
 %{_bindir}/msencrypt
@@ -234,30 +234,34 @@ EOF
 %{_bindir}/shptreevis
 %{_bindir}/sortshp
 %{_bindir}/tile4ms
-%{_libdir}/libmapserver.so.%{version}
-%{_libexecdir}/mapserv
-%{_libexecdir}/legend
-%{_libexecdir}/scalebar
 %{_datadir}/%{name}/
 
+%files libs
+%doc README
+%{_libdir}/libmapserver.so.%{version}
+%{_libdir}/libmapserver.so.2
+
 %files devel
+%doc README
 %{_libdir}/libmapserver.so
-%{_libdir}/libmapserver.so.1
 %{_includedir}/%{name}/
 
 %files -n php-%{name}
+%doc README
 %doc mapscript/php/README
 %doc mapscript/php/examples
 %config(noreplace) %{php_inidir}/%{ini_name}
 %{php_extdir}/php_mapscript.so*
 
 %files perl
+%doc README
 %doc mapscript/perl/examples
 %dir %{perl_vendorarch}/auto/mapscript
 %{perl_vendorarch}/auto/mapscript/*
 %{perl_vendorarch}/mapscript.pm
 
 %files python
+%doc README
 %doc mapscript/python/README
 %doc mapscript/python/examples
 %doc mapscript/python/tests
@@ -272,6 +276,9 @@ EOF
 
 
 %changelog
+* Tue Feb 23 2016 Julien Enselme <jujens@jujens.eu> - 7.0.0-1.gitab96f8a
+- Update to 7.0.0
+
 * Fri Oct 9 2015 Julien Enselme <jujens@jujens.eu> - 6.4.2-1
 - Update to 6.4.2
 
