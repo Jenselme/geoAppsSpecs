@@ -1,12 +1,12 @@
 %global ini_name 40-mapserver.ini
 %global project_owner mapserver
 %global project_name mapserver
-%global commit ab96f8a35e0d85ac9a83ec1cb9032ad33afe802b
+%global commit 6ae2bc6915d73417f4fea78201d4f7087c25b3f1
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 Name:           mapserver
-Version:        7.0.0
-Release:        2.git%{shortcommit}%{?dist}
+Version:        7.0.1
+Release:        1.git%{shortcommit}%{?dist}
 Summary:        Environment for building spatially-enabled internet applications
 
 Group:          Development/Tools
@@ -14,8 +14,6 @@ License:        BSD
 URL:            http://www.mapserver.org
 
 Source0:        https://github.com/%{project_owner}/%{project_name}/archive/%{commit}/%{project_name}-%{commit}.tar.gz
-Patch0:         swig-java-format-security.patch
-Patch1:         swig-ruby-format-security.patch
 
 Requires:       httpd
 Requires:       dejavu-sans-fonts
@@ -126,9 +124,6 @@ the ruby programming language.
 
 %prep
 %setup -q -n %{project_owner}-%{commit}
-%patch0 -p1
-%patch1 -p1
-
 
 # replace fonts for tests with symlinks
 rm -rf tests/vera/Vera.ttf
@@ -299,6 +294,9 @@ EOF
 
 
 %changelog
+* Thu  Feb 25 2016 Julien Enselme <jujens@jujens.eu> - 7.0.1-1.git6ae2bc6
+- Update to 7.0.1
+
 * Tue Feb 23 2016 Julien Enselme <jujens@jujens.eu> - 7.0.0-2.gitab96f8a
 - Enable java, ruby bindings
 
